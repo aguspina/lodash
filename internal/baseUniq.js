@@ -1,41 +1,47 @@
-var baseIndexOf = require('./baseIndexOf'),
-    cacheIndexOf = require('./cacheIndexOf'),
-    createCache = require('./createCache');
+var SetCache = require('./SetCache'),
+    arrayIncludes = require('./arrayIncludes'),
+    arrayIncludesWith = require('./arrayIncludesWith'),
+    cacheHas = require('./cacheHas');
 
 /** Used as the size to enable large array optimizations. */
 var LARGE_ARRAY_SIZE = 200;
 
 /**
- * The base implementation of `_.uniq` without support for callback shorthands
- * and `this` binding.
+ * The base implementation of `_.uniqBy` without support for callback shorthands.
  *
  * @private
  * @param {Array} array The array to inspect.
- * @param {Function} [iteratee] The function invoked per iteration.
+ * @param {Function} [iteratee] The iteratee invoked per element.
+ * @param {Function} [comparator] The comparator invoked per element.
  * @returns {Array} Returns the new duplicate free array.
  */
-function baseUniq(array, iteratee) {
-  var index = -1,
-      indexOf = baseIndexOf,
+function baseUniq(array, iteratee, comparator) {
+  var seen,
+      index = -1,
+      includes = arrayIncludes,
       length = array.length,
       isCommon = true,
-      isLarge = isCommon && length >= LARGE_ARRAY_SIZE,
-      seen = isLarge ? createCache() : null,
-      result = [];
+      result = [],
+      seen = result;
 
-  if (seen) {
-    indexOf = cacheIndexOf;
+  if (comparator) {
     isCommon = false;
-  } else {
-    isLarge = false;
+    includes = arrayIncludesWith;
+  }
+  else if (length >= LARGE_ARRAY_SIZE) {
+    isCommon = false;
+    includes = cacheHas;
+    seen = new SetCache;
+  }
+  else {
     seen = iteratee ? [] : result;
   }
   outer:
   while (++index < length) {
     var value = array[index],
-        computed = iteratee ? iteratee(value, index, array) : value;
+        computed = iteratee ? iteratee(value) : value;
 
-    if (isCommon && value === value) {
+    if (isCommon && computed === computed) {
       var seenIndex = seen.length;
       while (seenIndex--) {
         if (seen[seenIndex] === computed) {
@@ -47,8 +53,8 @@ function baseUniq(array, iteratee) {
       }
       result.push(value);
     }
-    else if (indexOf(seen, computed, 0) < 0) {
-      if (iteratee || isLarge) {
+    else if (!includes(seen, computed, comparator)) {
+      if (seen !== result) {
         seen.push(computed);
       }
       result.push(value);
